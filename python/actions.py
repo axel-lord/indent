@@ -6,6 +6,11 @@ def get_indent(size: int) -> str:
 
 
 class Action:
+    line: int
+
+    def __init__(self, line: int):
+        self.line = line
+
     def write(self, output_file: typing.TextIO, indent: int) -> None:
         raise NotImplementedError
 
@@ -13,8 +18,9 @@ class Action:
 class Context(Action):
     actions: list[Action]
 
-    def __init__(self) -> None:
+    def __init__(self, line: int) -> None:
         self.actions = []
+        Action.__init__(self, line)
 
     def write(self, output_file: typing.TextIO, indent: int) -> None:
         print(f"{get_indent(indent)}{{", file=output_file)
@@ -31,8 +37,8 @@ class Context(Action):
 class TopLevel(Context):
     entry_point: typing.Optional['Main']
 
-    def __init__(self) -> None:
-        Context.__init__(self)
+    def __init__(self, line: int) -> None:
+        Context.__init__(self, line)
         self.entry_point = None
 
     def write(self, output_file: typing.TextIO, indent: int = 0) -> None:
@@ -70,15 +76,15 @@ class Function(Context):
     __return_type: str
     __parameters: tuple[Parameter, ...]
 
-    def __init__(self, name: str, return_type: str = "void", parameters: tuple[Parameter, ...] = ()) -> None:
-        Context.__init__(self)
+    def __init__(self, line: int, name: str, return_type: str = "void", parameters: tuple[Parameter, ...] = ()) -> None:
+        Context.__init__(self, line)
         self.__name = name
         self.__return_type = return_type
         self.__parameters = parameters
 
         for p in parameters:
             if p.unused:
-                self.actions.append(CCommand(f"(void){p.name}"))
+                self.actions.append(CCommand(-1, f"(void){p.name}"))
 
     def write(self, output_file: typing.TextIO, indent: int) -> None:
         print(
@@ -94,14 +100,15 @@ class Function(Context):
 
 
 class Main(Function):
-    def __init__(self) -> None:
-        Function.__init__(self, "main", "int")
+    def __init__(self, line: int) -> None:
+        Function.__init__(self, line, "main", "int")
 
 
 class Comment(Action):
     message: str
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, line: int, message: str) -> None:
+        Action.__init__(self, line)
         self.message = message
 
     def write(self, output_file: typing.TextIO, indent: int) -> None:
@@ -113,7 +120,8 @@ class Comment(Action):
 class CPreprocessorDirective(Action):
     value: str
 
-    def __init__(self, value: str = ""):
+    def __init__(self, line: int, value: str = ""):
+        Action.__init__(self, line)
         self.value = value
 
     def write(self, output_file: typing.TextIO, indent: int) -> None:
@@ -125,7 +133,8 @@ class CPreprocessorDirective(Action):
 class CCommand(Action):
     cmd: str
 
-    def __init__(self, cmd: str = ""):
+    def __init__(self, line: int, cmd: str = ""):
+        Action.__init__(self, line)
         self.cmd = cmd
 
     def write(self, output_file: typing.TextIO, indent: int) -> None:
@@ -137,7 +146,8 @@ class CCommand(Action):
 class Return(Action):
     value: str
 
-    def __init__(self, value: str = "void") -> None:
+    def __init__(self, line: int, value: str = "void") -> None:
+        Action.__init__(self, line)
         self.value = value
 
     def write(self, output_file: typing.TextIO, indent: int) -> None:
