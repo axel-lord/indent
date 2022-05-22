@@ -14,7 +14,6 @@ def add_function(
         line: str,
         i: int,
         context_stack: list[actions.Context],
-        top_level: actions.TopLevel,
         function_name: str,
         return_type: str,
         args: list[str]
@@ -57,8 +56,8 @@ def add_function(
     if return_type == "none":
         return_type = "void"
 
-    function_context = actions.Function(function_name, return_type, tuple(parameters))
-    top_level.add_action(function_context)
+    function_context = actions.Function(i, function_name, return_type, tuple(parameters))
+    # top_level.add_action(function_context)
     context_stack.append(function_context)
     return True
 
@@ -78,7 +77,7 @@ def add_normal_flow(
                     f"\n{line.rstrip()}", file=sys.stderr
                 )
                 return False
-            context_stack[-1].add_action(actions.Return(value))
+            context_stack[-1].add_action(actions.Return(i, value))
 
         case ["return"]:
             if context_stack[-1] == top_level:
@@ -87,16 +86,23 @@ def add_normal_flow(
                     f"\n{line.rstrip()}", file=sys.stderr
                 )
                 return False
-            context_stack[-1].add_action(actions.Return())
+            context_stack[-1].add_action(actions.Return(i))
 
         case ["C::>", *c_args]:
             c_cmd = " ".join(c_args)
-            context_stack[-1].add_action(actions.CCommand(c_cmd))
+            context_stack[-1].add_action(actions.CCommand(i, c_cmd))
 
         case _:
             print(f"Line {i} invalid:\n{line.rstrip()}", file=sys.stderr)
             return False
     return True
+
+
+def pop_context_to(indent: int, context_stack: list[actions.Context], top_level: actions.TopLevel) -> None:
+    while indent < len(context_stack) - 1:
+        ctx = context_stack.pop()
+        if isinstance(ctx, actions.Function) and not isinstance(ctx, actions.Main):
+            top_level.add_action(ctx)
 
 
 def transpile(input_file: typing.TextIO, output_file: typing.TextIO) -> None:
@@ -106,7 +112,7 @@ def transpile(input_file: typing.TextIO, output_file: typing.TextIO) -> None:
 
     # param_pattern = re.compile(r"\w[_\w\d]*")
 
-    top_level = actions.TopLevel()
+    top_level = actions.TopLevel(-1)
     context_stack: list[actions.Context] = [top_level]
 
     line: str
@@ -116,54 +122,53 @@ def transpile(input_file: typing.TextIO, output_file: typing.TextIO) -> None:
             continue
 
         if m := comment_pattern.match(line):
-            context_stack[-1].add_action(actions.Comment(m[2]))
+            context_stack[-1].add_action(actions.Comment(i, m[2]))
             continue
 
         if m := action_pattern.match(line):
-            line_indent = len(m[1])
-
-            while line_indent < len(context_stack) - 1:
-                context_stack.pop()
+            pop_context_to(len(m[1]), context_stack, top_level)
 
             match m[2].split():
                 # special flow
                 case ["main:"]:
-                    main_context = actions.Main()
+                    main_context = actions.Main(i)
                     top_level.entry_point = main_context
                     context_stack.append(main_context)
 
                 case [function_name, *args, "->", return_type]:
-                    if not add_function(line, i, context_stack, top_level, function_name, return_type, args):
+                    if not add_function(line, i, context_stack, function_name, return_type, args):
                         return
 
                 case [value] if value[-1] == ':' and value[:-1] not in ("else",):
-                    function_context = actions.Function(value[:-1])
-                    top_level.add_action(function_context)
+                    function_context = actions.Function(i, value[:-1])
+                    # top_level.add_action(function_context)
                     context_stack.append(function_context)
 
                 case ["C::import", "local", *args]:
                     filename = " ".join(args)
-                    directive = actions.CPreprocessorDirective(f"include \"{filename}\"")
+                    directive = actions.CPreprocessorDirective(i, f"include \"{filename}\"")
                     context_stack[-1].add_action(directive)
                 case ["C::import", "global", *args]:
                     filename = " ".join(args)
-                    directive = actions.CPreprocessorDirective(f"include <{filename}>")
+                    directive = actions.CPreprocessorDirective(i, f"include <{filename}>")
                     context_stack[-1].add_action(directive)
                 case ["C::import", *args]:
                     filename = " ".join(args)
-                    directive = actions.CPreprocessorDirective(f"include <{filename}>")
+                    directive = actions.CPreprocessorDirective(i, f"include <{filename}>")
                     context_stack[-1].add_action(directive)
 
                 # normal flow
                 case args:
                     if m[3]:
-                        context_stack[-1].add_action(actions.Comment(m[3]))
+                        context_stack[-1].add_action(actions.Comment(i, m[3]))
                     if not add_normal_flow(context_stack, top_level, line, i, args):
                         return
             continue
 
         print(f"Line {i} did not match any pattern:\n{line.rstrip()}", file=sys.stderr)
         return
+
+    pop_context_to(0, context_stack, top_level)
 
     top_level.write(output_file)
 
