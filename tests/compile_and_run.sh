@@ -11,6 +11,9 @@ SOURCE_FILE=$(realpath -s "$3")
 C_FILE=$(realpath -s "$4")
 EXECUTABLE_FILE=$(realpath -s "$5")
 
+mkdir -p "$(dirname "$C_FILE")"
+mkdir -p "$(dirname "$EXECUTABLE_FILE")"
+
 $PYTHON_EXECUTABLE "$PYTHON_SCRIPT" "$SOURCE_FILE" "$C_FILE"
 gcc "$C_FILE" -o "$EXECUTABLE_FILE" -Wall -Wextra -Wpedantic
 
