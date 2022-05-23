@@ -1,11 +1,12 @@
 import typing
+from abc import ABC
 
 
 def get_indent(size: int) -> str:
     return "\t" * size
 
 
-class Action:
+class Action(ABC):
     line: int
 
     def __init__(self, line: int):
@@ -13,6 +14,41 @@ class Action:
 
     def write(self, output_file: typing.TextIO, indent: int) -> None:
         raise NotImplementedError
+
+
+class Type(Action, ABC):
+    supports_unsigned: bool
+
+    @property
+    def name(self) -> str:
+        raise NotImplementedError
+
+
+class Struct(Type):
+    def write(self, output_file: typing.TextIO, indent: int) -> None:
+        pass
+
+    def __init__(self, line: int, name: str):
+        Action.__init__(self, line)
+        self.__name = name
+
+    @property
+    def name(self) -> str:
+        return f"struct {self.__name}"
+
+
+class CNativeType(Type):
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    def __init__(self, line: int, name: str, supports_unsigned: bool = False):
+        self.__name = name
+        self.supports_unsigned = supports_unsigned
+        Action.__init__(self, line)
+
+    def write(self, output_file: typing.TextIO, indent: int) -> None:
+        pass
 
 
 class Context(Action):
@@ -37,9 +73,31 @@ class Context(Action):
 class TopLevel(Context):
     entry_point: typing.Optional['Main']
 
+    types: dict[str, Type]
+    functions: dict[str, 'Function']
+
     def __init__(self, line: int) -> None:
         Context.__init__(self, line)
+        self.types = {
+            n: CNativeType(-1, n, True)
+            for n in
+            {"char", "int", "short", "long"}
+        }
+        self.types.update({
+            n: CNativeType(-1, n)
+            for n in
+            {"double", "float"}
+        })
+        self.functions = {}
         self.entry_point = None
+        breakpoint()
+
+    def add_action(self, action: Action) -> None:
+        if isinstance(action, Function):
+            self.functions[action.name] = action
+        if isinstance(action, Type):
+            self.types[action.name] = action
+        super(TopLevel, self).add_action(action)
 
     def write(self, output_file: typing.TextIO, indent: int = 0) -> None:
         for action in self.actions:
@@ -97,6 +155,10 @@ class Function(Context):
             file=output_file
         )
         Context.write(self, output_file, indent)
+
+    @property
+    def name(self) -> str:
+        return self.__name
 
 
 class Main(Function):
