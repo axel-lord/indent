@@ -1,22 +1,19 @@
 from typing import Mapping, Sequence, TextIO
 
-from . import Action
+from .action import Action
 from .action import Context
+from .action import DuplicateFunctionError
+from .action import DuplicateTypeError
 from .function import Function
 from .type import Type
 
 
 class TopLevel(Context):
-    _actions: list[Action]
-    _functions: dict[str, Function]
-    _types: dict[str, Type]
-    _functions_and_types: list[Function | Type]
-
     def __init__(self) -> None:
-        self._actions = []
-        self._functions = {}
-        self._types = {}
-        self._functions_and_types = []
+        self._actions: list[Action] = []
+        self._functions: dict[str, Function] = {}
+        self._types: dict[str, Type] = {}
+        self._all_actions: list[Action] = []
 
     @property
     def actions(self) -> Sequence[Action]:
@@ -33,20 +30,23 @@ class TopLevel(Context):
     def add_function(self, action: Action) -> None:
         if not isinstance(action, Function):
             raise TypeError("Supplied argument is not a function!")
+        if action.name in self.functions:
+            raise DuplicateFunctionError(action.name)
         self._functions[action.name] = action
-        self._functions_and_types.append(action)
+        self._all_actions.append(action)
 
     def add_type(self, action: Action) -> None:
         if not isinstance(action, Type):
             raise TypeError("Supplied argument is not a Type!")
+        if action.name in self.types:
+            raise DuplicateTypeError(action.name)
         self._types[action.name] = action
-        self._functions_and_types.append(action)
+        self._all_actions.append(action)
 
     def add_action(self, action: Action) -> None:
         self._actions.append(action)
+        self._all_actions.append(action)
 
-    def write(self, file: TextIO, indent: int) -> None:
-        for ft in self._functions_and_types:
-            ft.write(file, 0)
-        for a in self.actions:
-            a.write(file, 0)
+    def write(self, file: TextIO, indent: int = 0) -> None:
+        for action in self._all_actions:
+            action.write(file, 0)
