@@ -1,16 +1,17 @@
-C::import global stdio.h
+# C::import global stdio.h
 C::import global stdbool.h
 
 main:
-	stuff -> none:
-		C::> printf("%s\n", "Hello World!")
-	C::> stuff()
-	return 0 # Success
+#	stuff -> none:
+#		C::> printf("%s\n", "Hello World!")
+#	C::> stuff()
+#	return 0 # Success
 
-nice (int hello, bool) -> int:
+nice (const int hello, bool) -> int:
 	wow -> char:
-		return 'a'
-	return hello
+		nice -> int:
+#		return 'a'
+#	return hello
 
 func:
-	return
+#	return

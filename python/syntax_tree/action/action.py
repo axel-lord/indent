@@ -3,6 +3,16 @@ from collections.abc import Mapping, Sequence
 from typing import Optional, TextIO
 
 
+class DuplicateFunctionError(Exception):
+    def __init__(self, function_name: str) -> None:
+        super().__init__(f"Duplicate function {function_name}!")
+
+
+class DuplicateTypeError(Exception):
+    def __init__(self, type_name: str) -> None:
+        super().__init__(f"Duplicate type {type_name}")
+
+
 class Action(ABC):
     _level: int
     _context: 'Context'
